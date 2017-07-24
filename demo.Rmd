@@ -1,0 +1,353 @@
+---
+title: "Worked example of the habitat-species network concept"
+author: "I. Bartomeus"
+date: "7/21/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Habitat-species networks
+
+We use data reported in Hill and Bartomeus (2016) to show the posibilities of the habitat-species network framework to analyze landscape level data.
+
+In this study we surveyed all main habitats in 10 study sites (2 km2). The habitat types surveyed in this study were:
+a)  Corridors
+b)	Forest
+c)	Forest/grassland boundary
+d)	Non-flowering crop boundary
+e)	Semi-natural grassland
+f)	Maintained roadside
+g)	Maintained drain.
+
+Within each habitat types the most flowery section was surveyed along a 50m long by 3m wide transect in which bumblebee abundance, by species, was recorded for 15 minutes. Each study plot was surveyed twice between 9th July 2014 and 25th August 2014.  
+
+First let's load and massage the data:
+
+```{r load_data, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+#load libraries
+library(reshape)
+library(vegan)
+library(bipartite)
+
+#then we read and understand the data
+d <- read.csv("data/powerlines3.csv", h = TRUE)
+head(d)
+str(d)
+
+#And check for mistakes.
+levels(d$Gen_sp) 
+#We remove unidentified species.
+d <- subset(d, Gen_sp != "Bombus_spp")
+levels(d$Site)
+#issues with swedish letters, I rename them
+levels(d$Site)[1] <- "Angeby"
+levels(d$Site)[4] <- "Gavsta"
+levels(d$Site)[7] <- "Kottgrind"
+levels(d$Site)[8] <- "Laby_Norra"
+levels(d$Site)[9] <- "Laby_Sodra"
+
+#we decide to merge both sampling rounds for now.
+str(d)
+d2 <- cast(d, formula = Site + Plot + Habitat + Gen_sp  ~ . , fun.aggregate = length)
+head(d2)
+#rename using same nomenclature as in the paper
+colnames(d2) <- c("Site","Patch","Habitat","Gen_sp","Abundance" )
+```
+
+Unfortunatelly we don't have coordinates for each habitat patch, but we can still visualizing one of the networks, even if it's not spatially explicit.
+
+##Visualization
+
+We select one network to work with: 
+
+```{r prep_vis, message=FALSE, warning=FALSE, results='hide'}
+#subset one site
+site1 <- subset(d2, Site == "Angeby")
+site1
+#create the network in matrix format
+ntw1 <- cast(site1, Patch ~ Gen_sp, fun.aggregate = "sum", value = "Abundance")
+#we can remove first column with rownames
+ntw1_ <- ntw1[,-1]
+ntw1 <- as.matrix(ntw1_)
+colnames(ntw1) <- gsub(pattern = "Bombus_", replacement = "B. ", 
+                       x = colnames(ntw1_), ignore.case = T)
+#set a patch dataframe to store its propierties.
+patch <- unique(site1[, c("Patch", "Habitat")])
+patch$color <- c("gold", "green", "gold", "darkgreen",
+                                     "grey", "green", "darkgreen",
+                                     "darkgreen", "lightgreen")
+rownames(ntw1) <- patch$Patch
+#set also a vector of bees
+bees <- cast(site1, Gen_sp ~ ., fun.aggregate = sum, value = "Abundance")
+colnames(bees)[2] <- "abundance"
+bees$labs <- colnames(ntw1)
+```
+
+We can use package _bipartite_ to plot it in two different ways:
+
+```{r vis_bipartite, echo=TRUE, message=FALSE, warning=FALSE}
+#prepare legend
+legend <- unique(patch[,c("Habitat", "color")])
+par(xpd = T) #allow plotting outside the plot
+plotweb(ntw1, col.low = as.character(patch$color)) 
+legend(x=0, y=0.25, as.character(legend$Habitat), pch=21,
+       col="#777777", pt.bg=as.character(legend$color), 
+       pt.cex=1, cex=.6, bty="n", ncol=2)
+visweb(ntw1, prednames = T, preynames = T, labsize = 0.6)
+```
+
+Just inspecting the network we can see _Bombus pascuorum_ is abundant and highly connected, specially to seminatural-habitats (in green). Let's explore other visualization options. Package _igraph_ is pretty cool too:
+
+```{r vis_igraph, message=FALSE, warning=FALSE}
+#or with pretier tools:
+library(igraph)
+#prepare the data for igraph
+links <- site1[,c("Gen_sp", "Patch", "Abundance")]
+colnames(links)[3] <- "weight"
+node1 <-  unique(site1[,c("Patch", "Habitat")])
+colnames(node1) <- c("node", "attribute")
+node1$type <- "habitat"
+node2 <-  data.frame(node = unique(site1[,c("Gen_sp")]), 
+                     attribute = NA,
+                     type = "species")
+nodes <- rbind(node1, node2)
+#create igraph object
+net <- graph_from_data_frame(d=links,
+                             vertices=nodes, directed=F) 
+# Generate colors based habitat: 
+clrs <- data.frame(nod = V(net)$attribute,
+                   cols = c(patch$color, rep("blue", 14)))
+V(net)$color <- as.character(clrs$cols)
+# Compute node degrees (#links) and use that to set node size:
+deg <- degree(net, mode="all")
+V(net)$size <- deg*3
+# Setting them to NA will render no labels:
+V(net)$label <- as.character(nodes$id)
+# Set edge width based on weight:
+E(net)$width <- E(net)$weight/3
+#change arrow size and edge color:
+E(net)$arrow.size <- .2 #but note no arrows in Unidirected graphs like this
+E(net)$edge.color <- "gray80"
+#prepare colors
+cl <- unique(clrs)
+cl$nod <- as.character(cl$nod)
+cl$nod[which(is.na(cl$nod))] <- "Bombus"
+plot(net, vertex.label = NA) #force vertex label NA to make visualization clearer.
+legend(x=-1.5, y=-1.1, cl$nod, pch=21,
+       col="#777777", pt.bg=as.character(cl$cols), 
+       pt.cex=2, cex=.8, bty="n", ncol=2)
+```
+
+Again, we can see there are 4 bigger habitat nodes that are highly connected. Interestingly, those belong to 4 different habitats. There is one more packege visNetwork that makes impresive interactive plots that may be better to visualize and explore this kind of graphs.
+
+```{r vis_visNetwork, message=FALSE, warning=FALSE}
+library('visNetwork') 
+colnames(nodes)[1] <- "id"
+nodes$shape <- "dot"  
+nodes$shadow <- TRUE # Nodes will drop shadow
+nodes$attribute <- as.character(nodes$attribute) 
+nodes$attribute[10:23] <-  as.character(nodes$id[10:23])
+nodes$title <- nodes$attribute # Text on click
+nodes$label <- nodes$type # Node label
+nodes$size <- deg*3 # Node size
+nodes$borderWidth <- 2 # Node border width
+
+nodes$color.background <- clrs$cols
+nodes$color.border <- "black"
+nodes$color.highlight.background <- "orange"
+nodes$color.highlight.border <- "darkred"
+links$width <- links$weight # line width
+links$color <- "gray"    # line color  
+#links$arrows <- "middle" # arrows: 'from', 'to', or 'middle'
+links$smooth <- TRUE    # should the edges be curved?
+links$shadow <- FALSE    # edge shadow
+colnames(links)[1:2] <- c("from", "to")
+visNetwork(nodes, links) 
+```
+
+Next let's calculate a few network parameters. 
+
+##Network structure
+
+How is this network structured? To calculate it's _nestedness_, we use weighted NODF, one of the more popular and robust nestedness metrics (Almeida-Neto et al. 2008, Almeida-Neto et al. 2010), but other options are available.
+
+```{r nestedness, message=FALSE, warning=FALSE}
+(obs <- networklevel(web = ntw1, index = "weighted NODF"))
+```
+
+To know if `r obs` is more nested than expected by chance for this network, we need to compare it with a null model:
+
+```{r null, message=FALSE, warning=FALSE}
+nm <- nullmodel(web = ntw1, N=1000, method="r2d")
+null <- unlist(sapply(nm, networklevel, index="weighted NODF")) 
+plot(density(null), xlim=c(min(obs, min(null)), max(obs, max(null))), 
+		main="comparison of observed with null model Patefield")
+abline(v=obs, col="red", lwd=2)    
+praw <- sum(null>obs) / length(null)
+```
+
+We can see this network is more nested than expected by chance (p value = `r ifelse(praw > 0.5, 1-praw, praw)`). This indicates that patches hosting less diversity tend to host also common species, or from the other point of view, that rare species tend to be found in more biodiverse patches. Now, let's calculate another structural metric. Its modularity. We will use a quantitative version for this end (Dormann et al 2016).
+
+```{r mod, message=FALSE, warning=FALSE}
+res <- computeModules(ntw1)
+plotModuleWeb(res, displayAlabels = T)
+#listModuleInformation(res)
+#printoutModuleInformation(res)
+```
+We can identify 4 modules. To see if this modularity level is larger than expected by chance we can follow a similar approach as above, but let's focus now on the description of this modules. We can see patches 7,8 and  form a dense module with common bumblebee species. Those are forested areas. patches 1,2 and 6 (grasslands and open habitats) host rarer bumblebees. The other modules are very small, but it's interesting that the only roadside patch has it's own module.
+
+```{r mod2, message=FALSE, warning=FALSE}
+#we can calculate 2 values for each node
+cz <- czvalues(res, weighted = TRUE, level = "lower")
+#c : among-module connectivity
+#z : within-module connectivity
+#Olesen et al. (2006) give critical c and z values of 0.62 and 2.6, respectively. Species exceeding these values are deemed connectors or hubs of a network. The justification of these thresholds remains unclear to me. They may also not apply for the quantitative version.
+plot(cz[[1]], cz[[2]], pch=16, xlab="c", ylab="z", 
+     cex=0.8, las=1, col = patch$col)
+text(cz[[1]], cz[[2]], names(cz[[1]]), pos=4, cex=0.7)
+#we can check congruence between runs wth function metaComputeModules
+#res2 <- metaComputeModules(as.matrix(ntw1))
+```
+
+We can also see the among-module (z) and within-module (c) connectivity of different patches. Interestingly, module 9 and 1 and 3 tend to act as links among modules. This makes snese as patch 9 is the interfase between Forest and grassland boundaries. Note c can't be computed for modules composed by a single patch, and hence patch 5 is not plotted.
+
+Next we can ask which patches would we prioritize its conservation. For this we calculate its strength (Bascopmte et al 2006).
+
+```{r strength, message=FALSE, warning=FALSE}
+#we traspose the matrix to calculate it for the lower level.
+patch$strength <- bipartite::strength(t(ntw1), type="Bascompte")
+patch
+```
+
+Interesting, roadsites has the highest strenth! This is because it sustain both common and rare species. However, we may want to correct for the fact that this habitat is only represetented once in the dataset. Not surprisingly forests tend to rank lower, as they host moderate number of common species.
+
+Let's see now how each patch influences each other (Müller et al 1999):
+
+```{r influ, message=FALSE, warning=FALSE}
+(inf <- PAC(ntw1))
+```
+
+We can read this matrix as the influnce mediated by shared pollinators between each pair of patches. Looks like influences are overall low (mean = `r mean(inf)`) but some patches influence each others via shared pollinators (e.g. 7->8 `r inf[7,8]`, but note this is not reciprocal, as 8->7 influence is moderate: `r inf[8,7]`) 
+
+Finally let's see which are the more selective bumblebees (Blüthgen et al 2007)? For this we regroup at habitat level.
+
+```{r regroup, message=FALSE, warning=FALSE}
+d3 <- cast(d, formula = Site + Habitat + Gen_sp  ~ . , fun.aggregate = length)
+colnames(d3) <- c("Site","Habitat","Gen_sp","Abundance" )
+site1b <- subset(d3, Site == "Angeby")
+#create the network in matrix format
+ntw1b <- cast(site1b, Habitat ~ Gen_sp, fun.aggregate = "sum", value = "Abundance")
+#we can remove first column with rownames
+ntw1b <- ntw1b[,-1]
+#let's visualize it with bipartite
+#plotweb(ntw1b)
+#and calculate d'
+#here low.abun can be used if we know patch attributes like area.
+bees$d <- specieslevel(web = ntw1b, index = "d", level = "higher")
+bees
+```
+
+We can see _B. terrestris_ or _B. pascuorum_ has high values of d' (very unselective), while _B. humilis_ or _B. soroeensis_ are highly selective.
+
+let's scale this analysis at the site levels. We can ask which site is more nested? and if the nestedness pattern correlates with amount of semi-natural habitats or species richness levels? We can also if more nested sites are also more robust (Memmot et al. 2004)?
+
+Let's calculate nestedness for all networks as well as other network parameters like species richness, robustness and number of semi-natural patches:
+
+```{r nested_comms, message=FALSE, warning=FALSE}
+#let's loop through all sites
+#first we create empty objects to store the data
+sites <- unique(d2$Site)
+ntwks <- list()
+nested <- c()
+rob_rand <- c()
+rob_real <- c()
+rich <- c()
+seminat <- c()
+for(i in 1:length(sites)){
+  sitex <- subset(d2, Site == sites[i])
+  #create the network in matrix format
+  ntwx <- cast(sitex, Patch ~ Gen_sp, fun.aggregate = "sum", 
+               value = "Abundance")
+  #we can remove first column with rownames
+  ntwx <- ntwx[,-1]
+  #let's visualize it with bipartite
+  #plotweb(ntwx)
+  ntwks[[i]] <- ntwx
+  #calculate nestedness
+  nested[i] <- networklevel(web = ntwx, index = "weighted NODF")
+  rob_rand[i] <- robustness(second.extinct(web = ntwx, nrep = 50, participant = "lower", method = "random")) 
+  #reate a realistic extinction sequence
+  ext_seq <- unique(sitex[,c("Patch", "Habitat")])
+  #quick and dirty way to order habitats
+  levels(ext_seq$Habitat) <- c("gCorridor", "bForest",
+                               "cForest_grassland_boundary",
+                               "fMaintained_drain", 
+                               "eMaintained_roadside",
+                               "dNon_flowering_crop_edge",
+                               "aSemi_natural_grasslands")
+  ext_seq$Patch <- order(as.character(ext_seq$Habitat))
+  rob_real[i] <- robustness(second.extinct(web = ntwx, participant = "lower", method = "external", ext.row = ext_seq$Patch )) #garsslands first, forest, etc...
+  rich[i] <- ncol(ntwx)
+  seminat[i] <- length(subset(ext_seq, Habitat %in%
+                                c("aSemi_natural_grasslands",
+                                  "bForest"))$Patch)
+}
+sites_measures <- data.frame(sites, nested, rob_rand, rob_real, rich, seminat)
+```
+
+Remember that to compare nestedness values, we need to standardize them:
+
+```{r stand_nest, message=FALSE, warning=FALSE}
+#Need to do!
+```
+
+_Are more nested networks correlates with amount of semi-natural habitats? _
+
+```{r plot1, message=FALSE, warning=FALSE}
+scatter.smooth(sites_measures$nested, sites_measures$seminat)
+```
+
+We are not going to run the stats here, but looks like there is a weak trend for sites with more seminatural habitats (forests and grasslands) to be more nested.
+
+_Are more nested networks also more biodiverse? _
+
+```{r plot2, message=FALSE, warning=FALSE}
+scatter.smooth(sites_measures$nested, sites_measures$rich)
+```
+
+In this case, the plot shows that nestedness is not realted to bumblebee richness levels.
+
+_Are more nested sites also more robust to in silico patch removal?_
+
+```{r plot3, message=FALSE, warning=FALSE}
+scatter.smooth(sites_measures$rob_rand, sites_measures$rob_real)
+scatter.smooth(sites_measures$nested, sites_measures$rob_rand)
+scatter.smooth(sites_measures$nested, sites_measures$rob_real)
+```
+
+In this case, both the random removal of patches, and the "semi-natural habitats first" removal are correlated, but none of them seems to be well correlated with nestedness level.
+
+##What we have learned?
+
+We have seen some of the oportunities and methological tools that we can use to anayze habitat-species networks... 
+
+##References
+
+Almeida-Neto, M., Loyola, R.D., Ulrich, W., Guimaraes, P., Guimaraes, Jr., P.R. 2008. A consistent metric for nestedness analysis in ecological systems: reconciling concept and measurement. Oikos 117, 1227–1239
+
+Almeida-Neto, M. & Ulrich, W. (2011) A straightforward computational approach for measuring nestedness using quantitative matrices. Environmental Modelling & Software 26, 173–178
+
+Bascompte, J., Jordano, P. and Olesen, J. M. 2006 Asymmetric coevolutionary networks facilitate biodiversity maintenance. Science 312, 431–433
+
+Blüthgen, N., Menzel, F., Hovestadt, T., Fiala, B. and Blüthgen N. 2007 Specialization, constraints and conflicting interests in mutualistic networks. Current Biology 17, 1–6
+
+Burgos, E., H. Ceva, R.P.J. Perazzo, M. Devoto, D. Medan, M. Zimmermann, and A. Maria Delbue (2007) Why nestedness in mutualistic networks? Journal of Theoretical Biology 249, 307–313
+
+Dormann, C. F., and R. Strauß. 2014. Detecting modules in quantitative bipartite networks: the QuanBiMo algorithm. Methods in Ecology & Evolution 5 90–98 (or arXiv [q-bio.QM] 1304.3218.)
+
+Memmott, J., Waser, N. M. and Price M. V. 2004 Tolerance of pollination networks to species extinctions. Proceedings of the Royal Society B 271, 2605–2611
+
+Müller, C. B., Adriaanse, I. C. T., Belshaw, R. and Godfray, H. C. J. 1999 The structure of an aphid-parasitoid community. Journal of Animal Ecology 68, 346–370

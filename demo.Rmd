@@ -1,7 +1,6 @@
 ---
 title: "Worked example of the habitat-species network concept"
 author: "I. Bartomeus"
-date: "7/21/2017"
 output: html_document
 ---
 
@@ -13,14 +12,14 @@ knitr::opts_chunk$set(echo = TRUE)
 
 We use data reported in Hill and Bartomeus (2016) to show the posibilities of the habitat-species network framework to analyze landscape level data.
 
-In this study we surveyed all main habitats in 10 study sites (2 km2). The habitat types surveyed in this study were:
-a)  Corridors
-b)	Forest
-c)	Forest/grassland boundary
-d)	Non-flowering crop boundary
-e)	Semi-natural grassland
-f)	Maintained roadside
-g)	Maintained drain.
+In this study we surveyed all main habitats in 10 study sites (2 km2). The habitat types surveyed in this study were:  
+a)  Corridors  
+b)	Forest  
+c)	Forest/grassland boundary  
+d)	Non-flowering crop boundary  
+e)	Semi-natural grassland  
+f)	Maintained roadside  
+g)	Maintained drain.  
 
 Within each habitat types the most flowery section was surveyed along a 50m long by 3m wide transect in which bumblebee abundance, by species, was recorded for 15 minutes. Each study plot was surveyed twice between 9th July 2014 and 25th August 2014.  
 
@@ -99,7 +98,7 @@ legend(x=0, y=0.25, as.character(legend$Habitat), pch=21,
 visweb(ntw1, prednames = T, preynames = T, labsize = 0.6)
 ```
 
-Just inspecting the network we can see _Bombus pascuorum_ is abundant and highly connected, specially to seminatural-habitats (in green). Let's explore other visualization options. Package _igraph_ is pretty cool too:
+Just inspecting the network we can see _Bombus pascuorum_ is abundant (large box) and highly connected (6 links), specially to seminatural-habitats (in green). Let's explore other visualization options. Package _igraph_ is pretty cool too:
 
 ```{r vis_igraph, message=FALSE, warning=FALSE}
 #or with pretier tools:
@@ -197,7 +196,7 @@ plotModuleWeb(res, displayAlabels = T)
 #listModuleInformation(res)
 #printoutModuleInformation(res)
 ```
-We can identify 4 modules. To see if this modularity level is larger than expected by chance we can follow a similar approach as above, but let's focus now on the description of this modules. We can see patches 7,8 and  form a dense module with common bumblebee species. Those are forested areas. patches 1,2 and 6 (grasslands and open habitats) host rarer bumblebees. The other modules are very small, but it's interesting that the only roadside patch has it's own module.
+We can identify 4 modules. To see if this modularity level is larger than expected by chance we can follow a similar approach as above, but let's focus now on the description of this modules. We can see patches 7, 8 and 9 form a dense module with common bumblebee species. Those are forested areas. Patches 1,2 and 6 (grasslands and open habitats) host rarer bumblebees. The other modules are very small, but it's interesting that the only roadside patch has it's own module.
 
 ```{r mod2, message=FALSE, warning=FALSE}
 #we can calculate 2 values for each node
@@ -254,14 +253,18 @@ We can see _B. terrestris_ or _B. pascuorum_ has high values of d' (very unselec
 
 let's scale this analysis at the site levels. We can ask which site is more nested? and if the nestedness pattern correlates with amount of semi-natural habitats or species richness levels? We can also if more nested sites are also more robust (Memmot et al. 2004)?
 
-Let's calculate nestedness for all networks as well as other network parameters like species richness, robustness and number of semi-natural patches:
+Let's calculate nestedness for all networks as well as other network parameters like species richness, robustness and number of semi-natural patches. Remember that to compare nestedness values, we need to standardize them. Song et al 2017 method is the more robust:
+
 
 ```{r nested_comms, message=FALSE, warning=FALSE}
+source("toolbox.R") #load code developed by Song et al. and available in his paper.
 #let's loop through all sites
 #first we create empty objects to store the data
 sites <- unique(d2$Site)
 ntwks <- list()
 nested <- c()
+NODF <- c()
+st_NODF <- c()
 rob_rand <- c()
 rob_real <- c()
 rich <- c()
@@ -278,7 +281,9 @@ for(i in 1:length(sites)){
   ntwks[[i]] <- ntwx
   #calculate nestedness
   nested[i] <- networklevel(web = ntwx, index = "weighted NODF")
-  rob_rand[i] <- robustness(second.extinct(web = ntwx, nrep = 50, participant = "lower", method = "random")) 
+  rob_rand[i] <- robustness(second.extinct(web = ntwx, nrep = 50, participant = "lower", method = "random"))
+  NODF[i] <- nestedness_NODF(ntwx)
+  st_NODF[i] <- comb_nest(web = ntwx, NODF = NODF, max_NODF = max_nest(ntwx))
   #reate a realistic extinction sequence
   ext_seq <- unique(sitex[,c("Patch", "Habitat")])
   #quick and dirty way to order habitats
@@ -295,44 +300,39 @@ for(i in 1:length(sites)){
                                 c("aSemi_natural_grasslands",
                                   "bForest"))$Patch)
 }
-sites_measures <- data.frame(sites, nested, rob_rand, rob_real, rich, seminat)
+sites_measures <- data.frame(sites, nested, NODF, st_NODF, rob_rand, rob_real, rich, seminat)
 ```
 
-Remember that to compare nestedness values, we need to standardize them:
-
-```{r stand_nest, message=FALSE, warning=FALSE}
-#Need to do!
-```
-
-_Are more nested networks correlates with amount of semi-natural habitats? _
+_Are more nested networks correlated with the amount of semi-natural habitats? _
 
 ```{r plot1, message=FALSE, warning=FALSE}
-scatter.smooth(sites_measures$nested, sites_measures$seminat)
+plot(sites_measures$st_NODF ~ sites_measures$seminat)
+abline(lm(sites_measures$st_NODF ~ sites_measures$seminat))
 ```
 
-We are not going to run the stats here, but looks like there is a weak trend for sites with more seminatural habitats (forests and grasslands) to be more nested.
+We are not going to run the stats here, but looks like there is a weak trend for sites with more seminatural habitat patches (forests and grasslands) to be less nested. For a proper test we would need better information on the proportion of semi-natural habitats in the landscape.
 
 _Are more nested networks also more biodiverse? _
 
 ```{r plot2, message=FALSE, warning=FALSE}
-scatter.smooth(sites_measures$nested, sites_measures$rich)
+scatter.smooth(sites_measures$st_NODF ~ sites_measures$rich)
 ```
 
-In this case, the plot shows that nestedness is not realted to bumblebee richness levels.
+In this case, the plot suggest that nestedness is not realted to bumblebee richness levels.
 
 _Are more nested sites also more robust to in silico patch removal?_
 
 ```{r plot3, message=FALSE, warning=FALSE}
-scatter.smooth(sites_measures$rob_rand, sites_measures$rob_real)
-scatter.smooth(sites_measures$nested, sites_measures$rob_rand)
-scatter.smooth(sites_measures$nested, sites_measures$rob_real)
+scatter.smooth(sites_measures$rob_rand ~ sites_measures$rob_real)
+scatter.smooth(sites_measures$st_NODF ~ sites_measures$rob_rand)
+scatter.smooth(sites_measures$neste ~ sites_measures$rob_real)
 ```
 
-In this case, both the random removal of patches, and the "semi-natural habitats first" removal are correlated, but none of them seems to be well correlated with nestedness level.
+In this case, both the random removal of patches, and the "semi-natural habitats first" removal are correlated.Contrary to expectations, in this situation robustnes is negatively correlated with nestedness level when removals are random, but this relationship is more complex when semi-natural patches are removed first.
 
 ##What we have learned?
 
-We have seen some of the oportunities and methological tools that we can use to anayze habitat-species networks... 
+We have seen here how to apply network tools to anayze habitat-species networks, and highlight that the type of analysis will depend on your question and the type of data available.
 
 ##References
 

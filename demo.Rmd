@@ -1,7 +1,8 @@
 ---
 title: "Worked example of the habitat-species network concept"
-author: "I. Bartomeus"
-output: html_document
+output:
+  html_document: default
+always_allow_html: yes
 ---
 
 ```{r setup, include=FALSE}
@@ -10,9 +11,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Habitat-species networks
 
-We use data reported in Hill and Bartomeus (2016) to show the posibilities of the habitat-species network framework to analyze landscape level data.
+We use data reported in Hill and Bartomeus (2016) to show the posibilities of the habitat-species network framework to analyze species habitat use at the landscape level.
 
-In this study we surveyed all main habitats in 10 study sites (2 km2). The habitat types surveyed in this study were:  
+In this study we surveyed all the dominant habitats in 10 study sites (2 km2). The habitat types surveyed in this study were:  
 a)  Corridors  
 b)	Forest  
 c)	Forest/grassland boundary  
@@ -21,9 +22,9 @@ e)	Semi-natural grassland
 f)	Maintained roadside  
 g)	Maintained drain.  
 
-Within each habitat types the most flowery section was surveyed along a 50m long by 3m wide transect in which bumblebee abundance, by species, was recorded for 15 minutes. Each study plot was surveyed twice between 9th July 2014 and 25th August 2014.  
+Within each habitat type a 50m x 3m transect was selected with the greatest number of flowering plant species. Bumblebee richness and abundance was recorded for 15 minutes. Each study plot was surveyed twice between 9th July 2014 and 25th August 2014.  
 
-First let's load and massage the data:
+First, let's load and format the data:
 
 ```{r load_data, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 #load libraries
@@ -31,24 +32,24 @@ library(reshape)
 library(vegan)
 library(bipartite)
 
-#then we read and understand the data
+#next we read and review the data
 d <- read.csv("data/powerlines3.csv", h = TRUE)
 head(d)
 str(d)
 
-#And check for mistakes.
+#And check for any inconsistencies
 levels(d$Gen_sp) 
 #We remove unidentified species.
 d <- subset(d, Gen_sp != "Bombus_spp")
 levels(d$Site)
-#issues with swedish letters, I rename them
+#Due to issues with swedish letters, they are renamed
 levels(d$Site)[1] <- "Angeby"
 levels(d$Site)[4] <- "Gavsta"
 levels(d$Site)[7] <- "Kottgrind"
 levels(d$Site)[8] <- "Laby_Norra"
 levels(d$Site)[9] <- "Laby_Sodra"
 
-#we decide to merge both sampling rounds for now.
+#Each of the two sampling rounds are pooled for this example
 str(d)
 d2 <- cast(d, formula = Site + Plot + Habitat + Gen_sp  ~ . , fun.aggregate = length)
 head(d2)
@@ -56,7 +57,7 @@ head(d2)
 colnames(d2) <- c("Site","Patch","Habitat","Gen_sp","Abundance" )
 ```
 
-Unfortunatelly we don't have coordinates for each habitat patch, but we can still visualizing one of the networks, even if it's not spatially explicit.
+Unfortunately we don't have coordinates for each habitat patch, but we can still visualizing one of the networks, even if it's not spatially explicit.
 
 ##Visualization
 
@@ -68,18 +69,18 @@ site1 <- subset(d2, Site == "Angeby")
 site1
 #create the network in matrix format
 ntw1 <- cast(site1, Patch ~ Gen_sp, fun.aggregate = "sum", value = "Abundance")
-#we can remove first column with rownames
+#we can remove the first column with rownames
 ntw1_ <- ntw1[,-1]
 ntw1 <- as.matrix(ntw1_)
 colnames(ntw1) <- gsub(pattern = "Bombus_", replacement = "B. ", 
                        x = colnames(ntw1_), ignore.case = T)
-#set a patch dataframe to store its propierties.
+#create a patch dataframe to store its properties.
 patch <- unique(site1[, c("Patch", "Habitat")])
 patch$color <- c("gold", "green", "gold", "darkgreen",
                                      "grey", "green", "darkgreen",
                                      "darkgreen", "lightgreen")
 rownames(ntw1) <- patch$Patch
-#set also a vector of bees
+#create a vector of bees
 bees <- cast(site1, Gen_sp ~ ., fun.aggregate = sum, value = "Abundance")
 colnames(bees)[2] <- "abundance"
 bees$labs <- colnames(ntw1)
@@ -98,7 +99,7 @@ legend(x=0, y=0.25, as.character(legend$Habitat), pch=21,
 visweb(ntw1, prednames = T, preynames = T, labsize = 0.6)
 ```
 
-Just inspecting the network we can see _Bombus pascuorum_ is abundant (large box) and highly connected (6 links), specially to seminatural-habitats (in green). Let's explore other visualization options. Package _igraph_ is pretty cool too:
+By inspecting the network we can see _Bombus pascuorum_ is abundant (large box) and highly connected (6 links), especially to semi-natural habitats (in green). Let's explore other visualization options. Package _igraph_ is pretty cool too:
 
 ```{r vis_igraph, message=FALSE, warning=FALSE}
 #or with pretier tools:
@@ -140,7 +141,9 @@ legend(x=-1.5, y=-1.1, cl$nod, pch=21,
        pt.cex=2, cex=.8, bty="n", ncol=2)
 ```
 
-Again, we can see there are 4 bigger habitat nodes that are highly connected. Interestingly, those belong to 4 different habitats. There is one more packege visNetwork that makes impresive interactive plots that may be better to visualize and explore this kind of graphs.
+Here, we can see that the four larger habitat nodes that are highly connected. Interestingly, these belong to four different habitat types.  
+
+There is one more packege _visNetwork_ that makes impressive interactive plots that may be better to visualize and explore these kind of graphs.
 
 ```{r vis_visNetwork, message=FALSE, warning=FALSE}
 library('visNetwork') 
@@ -171,7 +174,7 @@ Next let's calculate a few network parameters.
 
 ##Network structure
 
-How is this network structured? To calculate it's _nestedness_, we use weighted NODF, one of the more popular and robust nestedness metrics (Almeida-Neto et al. 2008, Almeida-Neto et al. 2010), but other options are available.
+How is this network structured? To calculate it's _nestedness_, we use weighted NODF, one of the more popular and robust nestedness metrics (Almeida-Neto et al. 2008, Almeida-Neto et al. 2010), but other options are also available.
 
 ```{r nestedness, message=FALSE, warning=FALSE}
 (obs <- networklevel(web = ntw1, index = "weighted NODF"))
@@ -188,7 +191,9 @@ abline(v=obs, col="red", lwd=2)
 praw <- sum(null>obs) / length(null)
 ```
 
-We can see this network is more nested than expected by chance (p value = `r ifelse(praw > 0.5, 1-praw, praw)`). This indicates that patches hosting less diversity tend to host also common species, or from the other point of view, that rare species tend to be found in more biodiverse patches. Now, let's calculate another structural metric. Its modularity. We will use a quantitative version for this end (Dormann et al 2016).
+Here, We can see this network is more nested than expected by chance (p value = `r ifelse(praw > 0.5, 1-praw, praw)`). This indicates that patches hosting less diversity tend to host also common species, or alternatively, rare species tend to be found in more biodiverse patches.  
+
+Now, let's calculate another structural metric. Its modularity. We will use a quantitative version for this end (Dormann et al 2016).
 
 ```{r mod, message=FALSE, warning=FALSE}
 res <- computeModules(ntw1)
@@ -196,7 +201,9 @@ plotModuleWeb(res, displayAlabels = T)
 #listModuleInformation(res)
 #printoutModuleInformation(res)
 ```
-We can identify 4 modules. To see if this modularity level is larger than expected by chance we can follow a similar approach as above, but let's focus now on the description of this modules. We can see patches 7, 8 and 9 form a dense module with common bumblebee species. Those are forested areas. Patches 1,2 and 6 (grasslands and open habitats) host rarer bumblebees. The other modules are very small, but it's interesting that the only roadside patch has it's own module.
+We can identify four modules. To see if this modularity level is larger than expected by chance we can follow a similar approach as above using a null model. 
+
+For the purpose of this worked example, we now focus on the description of these modules. We can see patches 7, 8 and 9 form a dense module with common bumblebee species. Those are forested areas. Patches 1,2 and 6 (grasslands and open habitats) host rarer bumblebees. The other modules are very small, but it's interesting that the only roadside patch has it's own module.
 
 ```{r mod2, message=FALSE, warning=FALSE}
 #we can calculate 2 values for each node
@@ -211,17 +218,17 @@ text(cz[[1]], cz[[2]], names(cz[[1]]), pos=4, cex=0.7)
 #res2 <- metaComputeModules(as.matrix(ntw1))
 ```
 
-We can also see the among-module (z) and within-module (c) connectivity of different patches. Interestingly, module 9 and 1 and 3 tend to act as links among modules. This makes snese as patch 9 is the interfase between Forest and grassland boundaries. Note c can't be computed for modules composed by a single patch, and hence patch 5 is not plotted.
+We can also see the among-module (z) and within-module (c) connectivity of different patches. Interestingly, module 9 and 1 and 3 tend to act as links among modules. This makes sense as patch 9 is the interface between Forest and grassland boundaries. Note c can't be computed for modules composed by a single patch, and hence patch 5 is not plotted.
 
-Next we can ask which patches would we prioritize its conservation. For this we calculate its strength (Bascopmte et al 2006).
+Next, we can ask which habitat patches would we prioritize for its conservation value. For this we can calculate its strength (Bascopmte et al 2006).
 
 ```{r strength, message=FALSE, warning=FALSE}
-#we traspose the matrix to calculate it for the lower level.
+#we transpose the matrix to calculate it for the lower level.
 patch$strength <- bipartite::strength(t(ntw1), type="Bascompte")
 patch
 ```
 
-Interesting, roadsites has the highest strenth! This is because it sustain both common and rare species. However, we may want to correct for the fact that this habitat is only represetented once in the dataset. Not surprisingly forests tend to rank lower, as they host moderate number of common species.
+Interesting, roadsides has the highest strength! This is because they sustain both common and rare species. However, we may want to correct for the fact that this habitat is only represented once in the dataset. Not surprisingly forests tend to rank lower, as they host a moderate number of common species.
 
 Let's see now how each patch influences each other (Müller et al 1999):
 
@@ -229,7 +236,7 @@ Let's see now how each patch influences each other (Müller et al 1999):
 (inf <- PAC(ntw1))
 ```
 
-We can read this matrix as the influnce mediated by shared pollinators between each pair of patches. Looks like influences are overall low (mean = `r mean(inf)`) but some patches influence each others via shared pollinators (e.g. 7->8 `r inf[7,8]`, but note this is not reciprocal, as 8->7 influence is moderate: `r inf[8,7]`) 
+We can read this matrix as the influence mediated by shared pollinators between each pair of habitat patches. It looks like influence is low overall (mean = `r mean(inf)`) but some patches influence each others via shared pollinators (e.g. 7->8 `r inf[7,8]`, but note this is not reciprocal, as 8->7 influence is moderate: `r inf[8,7]`) 
 
 Finally let's see which are the more selective bumblebees (Blüthgen et al 2007)? For this we regroup at habitat level.
 
@@ -249,11 +256,11 @@ bees$d <- specieslevel(web = ntw1b, index = "d", level = "higher")
 bees
 ```
 
-We can see _B. terrestris_ or _B. pascuorum_ has high values of d' (very unselective), while _B. humilis_ or _B. soroeensis_ are highly selective.
+We can see _B. terrestris_ or _B. pascuorum_ have high values of d' (very unselective), while _B. humilis_ or _B. soroeensis_ are highly selective.
 
-let's scale this analysis at the site levels. We can ask which site is more nested? and if the nestedness pattern correlates with amount of semi-natural habitats or species richness levels? We can also if more nested sites are also more robust (Memmot et al. 2004)?
+At the site levels we can also determine which site is more nested and if the nestedness pattern correlates with amount of semi-natural habitats or species richness levels. Further, we can determine if more nested networks are also more robust (Memmot et al. 2004)?
 
-Let's calculate nestedness for all networks as well as other network parameters like species richness, robustness and number of semi-natural patches. Remember that to compare nestedness values, we need to standardize them. Song et al 2017 method is the more robust:
+Let's calculate nestedness for all networks as well as other network parameters like species richness, robustness and number of semi-natural patches. Remember that to compare nestedness values, we need to standardize them. We suggest to follow Song et al 2017 method, as is the more robust:
 
 
 ```{r nested_comms, message=FALSE, warning=FALSE}
@@ -310,7 +317,7 @@ plot(sites_measures$st_NODF ~ sites_measures$seminat)
 abline(lm(sites_measures$st_NODF ~ sites_measures$seminat))
 ```
 
-We are not going to run the stats here, but looks like there is a weak trend for sites with more seminatural habitat patches (forests and grasslands) to be less nested. For a proper test we would need better information on the proportion of semi-natural habitats in the landscape.
+A quick look tells us that there is a weak trend for sites with more seminatural habitat patches (forests and grasslands) to be less nested. We would need better information on the proportion of semi-natural habitats in the landscape to run more accurate statistical tests.
 
 _Are more nested networks also more biodiverse? _
 
@@ -318,9 +325,9 @@ _Are more nested networks also more biodiverse? _
 scatter.smooth(sites_measures$st_NODF ~ sites_measures$rich)
 ```
 
-In this case, the plot suggest that nestedness is not realted to bumblebee richness levels.
+In this case, the plot suggest that nestedness is not related to bumblebee richness levels.
 
-_Are more nested sites also more robust to in silico patch removal?_
+_Are more nested sites also more robust to_ in silico _patch removal?_
 
 ```{r plot3, message=FALSE, warning=FALSE}
 scatter.smooth(sites_measures$rob_rand ~ sites_measures$rob_real)
@@ -328,7 +335,7 @@ scatter.smooth(sites_measures$st_NODF ~ sites_measures$rob_rand)
 scatter.smooth(sites_measures$neste ~ sites_measures$rob_real)
 ```
 
-In this case, both the random removal of patches, and the "semi-natural habitats first" removal are correlated.Contrary to expectations, in this situation robustnes is negatively correlated with nestedness level when removals are random, but this relationship is more complex when semi-natural patches are removed first.
+In this case, both the random removal of patches, and the "semi-natural habitats first" removal are correlated.Contrary to expectations, in this situation robustness is negatively correlated with nestedness level when removals are random, but this relationship is more complex when semi-natural patches are removed first.
 
 ##What we have learned?
 

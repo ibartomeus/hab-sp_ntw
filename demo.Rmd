@@ -290,7 +290,7 @@ for(i in 1:length(sites)){
   nested[i] <- networklevel(web = ntwx, index = "weighted NODF")
   rob_rand[i] <- robustness(second.extinct(web = ntwx, nrep = 50, participant = "lower", method = "random"))
   NODF[i] <- nestedness_NODF(ntwx)
-  st_NODF[i] <- comb_nest(web = ntwx, NODF = NODF, max_NODF = max_nest(ntwx))
+  st_NODF[i] <- comb_nest(web = ntwx, NODF = NODF[i], max_NODF = max_nest(ntwx))
   #reate a realistic extinction sequence
   ext_seq <- unique(sitex[,c("Patch", "Habitat")])
   #quick and dirty way to order habitats
@@ -335,7 +335,7 @@ scatter.smooth(sites_measures$st_NODF ~ sites_measures$rob_rand)
 scatter.smooth(sites_measures$neste ~ sites_measures$rob_real)
 ```
 
-In this case, both the random removal of patches, and the "semi-natural habitats first" removal are correlated.Contrary to expectations, in this situation robustness is negatively correlated with nestedness level when removals are random, but this relationship is more complex when semi-natural patches are removed first.
+In this case, both the random removal of patches, and the "semi-natural habitats first" removal are correlated.Contrary to expectations, in this situation robustness is not correlated with nestedness level when removals are random, but this relationship is more complex when semi-natural patches are removed first.
 
 ##What we have learned?
 

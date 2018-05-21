@@ -37,7 +37,7 @@ d <- read.csv("data/powerlines3.csv", h = TRUE)
 head(d)
 str(d)
 
-#And check for any inconsistencies
+#Check for any inconsistencies
 levels(d$Gen_sp) 
 #We remove unidentified species.
 d <- subset(d, Gen_sp != "Bombus_spp")
@@ -218,7 +218,7 @@ text(cz[[1]], cz[[2]], names(cz[[1]]), pos=4, cex=0.7)
 #res2 <- metaComputeModules(as.matrix(ntw1))
 ```
 
-We can also see the among-module (z) and within-module (c) connectivity of different patches. Interestingly, module 9 and 1 and 3 tend to act as links among modules. This makes sense as patch 9 is the interface between Forest and grassland boundaries. Note c can't be computed for modules composed by a single patch, and hence patch 5 is not plotted.
+We can also see the among-module (_c_) and within-module (_z_) connectivity of different patches. Interestingly, module 6 and 8 and 9 tend to act as connectors among modules. This makes sense as patch 9 is the interface between Forest and grassland boundaries. Note that _z_ can't be computed for modules composed by a single patch, and hence patch 5 is not plotted.
 
 Next, we can ask which habitat patches would we prioritize for its conservation value. For this we can calculate its strength (Bascopmte et al 2006).
 
@@ -355,6 +355,12 @@ Burgos, E., H. Ceva, R.P.J. Perazzo, M. Devoto, D. Medan, M. Zimmermann, and A. 
 
 Dormann, C. F., and R. Strauß. 2014. Detecting modules in quantitative bipartite networks: the QuanBiMo algorithm. Methods in Ecology & Evolution 5 90–98 (or arXiv [q-bio.QM] 1304.3218.)
 
+Hill, B., Bartomeus, I. 2016. The potential of electricity transmission corridors in forested areas as bumblebee habitat. Royal Open Science, 3, 160525.
+
 Memmott, J., Waser, N. M. and Price M. V. 2004 Tolerance of pollination networks to species extinctions. Proceedings of the Royal Society B 271, 2605–2611
 
 Müller, C. B., Adriaanse, I. C. T., Belshaw, R. and Godfray, H. C. J. 1999 The structure of an aphid-parasitoid community. Journal of Animal Ecology 68, 346–370
+
+Olesen, J. M., Bascompte, J., Dupont, Y. L., Jordano, P. 2007. The modularity of pollination networks. Proceedings of the National Academy of Sciences, 104, 1989–9896.
+
+Song, C., Rohr, R. P., Saavedra, S. 2017. Why are some plant–pollinator networks more nested than others? Journal of Animal Ecology, 86, 1417-1424.

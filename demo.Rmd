@@ -11,20 +11,20 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Habitat-species networks
 
-We use data reported in Hill and Bartomeus (2016) to show the posibilities of the habitat-species network framework to analyze species habitat use at the landscape level.
+To show how to technically implement the species-habitat network framework, we use data reported in Hill & Bartomeus (2016), which can be found in an updated version at https://github.com/ibartomeus/hab-sp_ntw/blob/master/data/powerlines3.csv. The sampling was not originally conceived to apply this framework and therefore it should not be considered an optimal design for this purpose. The nature of the data is, however, suitable to exemplify how to compute some of the available metrics using simple examples that can be more easily visualized and interpreted by the users.
 
-In this study we surveyed all the dominant habitats in 10 study sites (2 km2). The habitat types surveyed in this study were:  
-a)  Corridors  
-b)	Forest  
-c)	Forest/grassland boundary  
-d)	Non-flowering crop boundary  
-e)	Semi-natural grassland  
-f)	Maintained roadside  
-g)	Maintained drain.  
+In the study, surveys were carried out in multiple habitats across 10 landscapes of 2 x 2 km. The habitat types were:  
+a) Corridors  
+b) Forest  
+c) Forest/grassland boundary  
+d) Non-flowering crop boundary  
+e) Semi-natural grassland  
+f) Maintained roadside  
+g) Maintained drain  
 
-Within each habitat type a 50m x 3m transect was selected with the greatest number of flowering plant species. Bumblebee richness and abundance was recorded for 15 minutes. Each study plot was surveyed twice between 9th July 2014 and 25th August 2014.  
+Within each habitat type, a 50 x 3 m transect with the highest number of flowering plant species was selected. Bumblebee species abundance was recorded for 15 minutes. Each study plot was surveyed twice between 9th July 2014 and 25th August 2014.  
 
-First, let's load and format the data:
+We start by loading and formatting the data:
 
 ```{r load_data, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
 #load libraries
@@ -191,19 +191,21 @@ abline(v=obs, col="red", lwd=2)
 praw <- sum(null>obs) / length(null)
 ```
 
-Here, We can see this network is more nested than expected by chance (p value = `r ifelse(praw > 0.5, 1-praw, praw)`). This indicates that patches hosting less diversity tend to host also common species, or alternatively, rare species tend to be found in more biodiverse patches.  
+Here, we can see that this network is less nested than expected by chance (p value `r ifelse(praw > 0.5, round(1-praw,3), round(praw, 3))`). This suggests that these species do not use habitats in a nested way (i.e. species-rich habitats do not host species found in species poor habitats) and we should check for other network structural features.  
 
-Now, let's calculate another structural metric. Its modularity. We will use a quantitative version for this end (Dormann et al 2016).
+To gain further insights on the structure of species habitats networks, we can use another important structural metric: modularity. In this example, we will calculate a quantitative version of the metric (Dormann et al., 2014).
 
 ```{r mod, message=FALSE, warning=FALSE}
 res <- computeModules(ntw1)
 plotModuleWeb(res, displayAlabels = T)
 #listModuleInformation(res)
 #printoutModuleInformation(res)
+modules.nulls <- sapply(nm, computeModules)
+like.nulls <- sapply(modules.nulls, function(x) x@likelihood)
+praw <- sum(like.nulls > res@likelihood) / length(like.nulls)
 ```
-We can identify four modules. To see if this modularity level is larger than expected by chance we can follow a similar approach as above using a null model. 
 
-For the purpose of this worked example, we now focus on the description of these modules. We can see patches 7, 8 and 9 form a dense module with common bumblebee species. Those are forested areas. Patches 1,2 and 6 (grasslands and open habitats) host rarer bumblebees. The other modules are very small, but it's interesting that the only roadside patch has it's own module.
+The network is more modular than expected by chance (p-value < `r ifelse(praw > 0.5, round(1-praw,3), round(praw, 3))`). This confirms that each habitat tends to harbour a quite unique assemblage of species, with limited exchange between habitat patches. For the purpose of this worked example, we now focus on the description of these modules. We can see that patches 7, 8 and 9 (forest areas) form a dense module with common bumblebee species. Patches 1, 2 and 6 (grasslands and open habitats) host rarer bumblebees. The other modules are very small. It is interesting to note that the only roadside patch has its own module.
 
 ```{r mod2, message=FALSE, warning=FALSE}
 #we can calculate 2 values for each node
@@ -289,7 +291,7 @@ for(i in 1:length(sites)){
   #calculate nestedness
   nested[i] <- networklevel(web = ntwx, index = "weighted NODF")
   rob_rand[i] <- robustness(second.extinct(web = ntwx, nrep = 50, participant = "lower", method = "random"))
-  NODF[i] <- nestedness_NODF(ntwx)
+  NODF[i] <- nestedness_NODF(as.matrix(ntwx))
   st_NODF[i] <- comb_nest(web = ntwx, NODF = NODF[i], max_NODF = max_nest(ntwx))
   #reate a realistic extinction sequence
   ext_seq <- unique(sitex[,c("Patch", "Habitat")])
@@ -335,7 +337,7 @@ scatter.smooth(sites_measures$st_NODF ~ sites_measures$rob_rand)
 scatter.smooth(sites_measures$neste ~ sites_measures$rob_real)
 ```
 
-In this case, both the random removal of patches, and the "semi-natural habitats first" removal are correlated.Contrary to expectations, in this situation robustness is not correlated with nestedness level when removals are random, but this relationship is more complex when semi-natural patches are removed first.
+In this case, both the random removal of patches, and the "semi-natural habitats first" removal are correlated. Contrary to expectations, in this situation robustness is moderately correlated with nestedness level when removals are random, but this relationship is more complex when semi-natural patches are removed first.
 
 ##What we have learned?
 

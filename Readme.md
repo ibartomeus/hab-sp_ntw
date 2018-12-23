@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/98207453.svg)](https://zenodo.org/badge/latestdoi/98207453)
+
 # Sup Mat for "species-habitat networks: bridging network and landscape ecology"
 
 by Marini, Bartomeus, Rader and Lami.
